@@ -27,3 +27,14 @@ app.include_router(audit.router)
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/")
+def root():
+    return {
+        "name": "Prompt Versioning & A/B Testing Platform API",
+        "docs": "/docs",
+        "health": "/health",
+        "prompts": "/prompts",
+        "experiments": "/experiments",
+    }
