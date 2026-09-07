@@ -8,9 +8,12 @@ import streamlit as st
 
 from api import list_audit_log, list_notifications
 
-st.set_page_config(page_title="Audit Log", layout="wide")
-st.title("Audit Log & Notifications")
-st.caption("Every prompt creation, version change, experiment start/stop, variant assignment summary, winner promotion, and rollback is recorded here.")
+st.set_page_config(page_title="Audit Log", layout="wide", page_icon="📜")
+st.title("📜 Audit Log & Notifications")
+st.caption(
+    "\"Who changed the prompt that broke the feature last Tuesday?\" — this answers that. Every "
+    "prompt creation, version change, experiment start/stop, winner promotion, and rollback is recorded here."
+)
 
 tab_audit, tab_notif = st.tabs(["Audit log", "Notifications"])
 

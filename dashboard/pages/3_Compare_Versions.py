@@ -9,13 +9,16 @@ import streamlit as st
 
 from api import list_prompts, list_versions, post
 
-st.set_page_config(page_title="Compare Versions", layout="wide")
-st.title("Compare Prompt Versions")
-st.caption("Send the same test inputs to two versions and eyeball the outputs before launching a full experiment.")
+st.set_page_config(page_title="Compare Versions", layout="wide", page_icon="⚖️")
+st.title("⚖️ Compare Prompt Versions")
+st.caption(
+    "A quick sanity check before committing to a full experiment: send the same test inputs to "
+    "two versions and eyeball the outputs side by side."
+)
 
 prompts = list_prompts()
 if not prompts:
-    st.info("Create a prompt first.")
+    st.info("Create a prompt first on the **Prompt Registry** page.")
     st.stop()
 
 names = {p["name"]: p["id"] for p in prompts}

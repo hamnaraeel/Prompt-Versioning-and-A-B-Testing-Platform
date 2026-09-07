@@ -9,15 +9,19 @@ import streamlit as st
 
 from api import get_experiment_results, list_experiments, list_prompts, list_versions, post
 
-st.set_page_config(page_title="Experiments", layout="wide")
-st.title("Experiments")
+st.set_page_config(page_title="Experiments", layout="wide", page_icon="🔬")
+st.title("🔬 Experiments")
+st.caption(
+    "Send real traffic to 2+ prompt versions at once and let statistics tell you which one wins. "
+    "Each user consistently sees the same version, so results stay fair."
+)
 
-tab_create, tab_monitor = st.tabs(["Create experiment", "Monitor / results"])
+tab_create, tab_monitor = st.tabs(["➕ Create experiment", "📊 Monitor / results"])
 
 with tab_create:
     prompts = list_prompts()
     if not prompts:
-        st.info("Create a prompt with at least two versions first.")
+        st.info("You'll need a prompt with at least two versions first — head to **Prompt Registry** to create one.")
     else:
         names = {p["name"]: p["id"] for p in prompts}
         chosen_prompt = st.selectbox("Prompt", list(names.keys()))
@@ -37,14 +41,27 @@ with tab_create:
                     c1, c2, c3 = st.columns([2, 1, 1])
                     label = c1.selectbox(f"Variant {i+1} version", list(version_options.keys()), key=f"vv_{i}")
                     pct = c2.number_input("Traffic %", min_value=0.0, max_value=100.0, value=default_pct, key=f"pct_{i}")
-                    is_control = c3.checkbox("Control", value=(i == 0), key=f"ctrl_{i}")
+                    is_control = c3.checkbox("Control", value=(i == 0), key=f"ctrl_{i}", help="The baseline everything else is compared against — pick exactly one.")
                     variant_rows.append({"version_id": version_options[label], "name": label.split(" — ")[0], "traffic_pct": pct, "is_control": is_control})
 
-                primary_metric = st.selectbox("Primary metric", ["task_accuracy", "quality_score", "latency_ms", "cost_usd", "total_tokens"])
-                target_n = st.number_input("Target sample size (per experiment)", min_value=20, value=200, step=20)
-                confidence = st.selectbox("Confidence level", [0.90, 0.95, 0.99], index=1)
-                auto_promote = st.checkbox("Auto-promote winner after 24h hold", value=True)
-                actor = st.text_input("Actor", value="dashboard-user")
+                primary_metric = st.selectbox(
+                    "What defines \"better\"?",
+                    ["task_accuracy", "quality_score", "latency_ms", "cost_usd", "total_tokens"],
+                    help="task_accuracy/quality_score: higher is better. latency_ms/cost_usd/total_tokens: lower is better.",
+                )
+                target_n = st.number_input(
+                    "How many requests before deciding?", min_value=20, value=200, step=20,
+                    help="Total sample size across all variants combined.",
+                )
+                confidence = st.selectbox(
+                    "Confidence level", [0.90, 0.95, 0.99], index=1,
+                    help="95% is standard — how sure the system needs to be before declaring a winner.",
+                )
+                auto_promote = st.checkbox(
+                    "Auto-promote the winner after a 24h safety hold", value=True,
+                    help="Once significant, the winner becomes live automatically after 24h unless you cancel it.",
+                )
+                actor = st.text_input("Your name", value="dashboard-user", help="Shown in the audit log.")
 
                 if st.form_submit_button("Create experiment") and exp_name:
                     post(
@@ -63,26 +80,40 @@ with tab_create:
                     st.success(f"Created experiment '{exp_name}'")
                     st.rerun()
 
+STATUS_LABELS = {
+    "draft": ("📝", "Draft — not started"),
+    "running": ("🏃", "Running"),
+    "winner_declared": ("🏆", "Winner found"),
+    "completed": ("✅", "Completed"),
+    "auto_stopped": ("⚠️", "Auto-stopped"),
+    "cancelled": ("⏹️", "Cancelled"),
+}
+OVERALL_LABELS = {
+    "winner": ("🏆", "We have a winner"),
+    "no_winner": ("🚫", "Control is holding up — no variant beat it"),
+    "inconclusive": ("⏳", "Not enough evidence yet — keep collecting data"),
+}
+
 with tab_monitor:
     experiments = list_experiments()
     if not experiments:
-        st.info("No experiments yet.")
+        st.info("No experiments yet — create one in the tab above.")
         st.stop()
 
-    labels = {f"{e['name']} ({e['status']})": e["id"] for e in experiments}
+    labels = {f"{e['name']} — {STATUS_LABELS.get(e['status'], ('', e['status']))[1]}": e["id"] for e in experiments}
     chosen = st.selectbox("Experiment", list(labels.keys()))
     exp_id = labels[chosen]
     exp = next(e for e in experiments if e["id"] == exp_id)
 
     col_start, col_cancel, col_promote, col_cancel_promo = st.columns(4)
-    if exp["status"] == "draft" and col_start.button("Start experiment"):
+    if exp["status"] == "draft" and col_start.button("▶️ Start experiment"):
         post(f"/experiments/{exp_id}/start")
         st.rerun()
     if exp["status"] in ("draft", "running") and col_cancel.button("Cancel experiment"):
         post(f"/experiments/{exp_id}/cancel")
         st.rerun()
     if exp["status"] == "winner_declared":
-        if col_promote.button("Promote winner now"):
+        if col_promote.button("🚀 Promote winner now"):
             post(f"/experiments/{exp_id}/promote")
             st.rerun()
         if not exp["promotion_cancelled"] and col_cancel_promo.button("Cancel auto-promotion"):
@@ -92,8 +123,13 @@ with tab_monitor:
     st.divider()
     results = get_experiment_results(exp_id)
 
-    st.subheader(f"Status: {results['overall_status'].upper()} — experiment status: {results['status']}")
-    st.progress(min(results["progress"], 1.0), text=f"{results['total_samples']} / {results['target_sample_size']} samples")
+    overall_icon, overall_label = OVERALL_LABELS.get(results["overall_status"], ("•", results["overall_status"]))
+    st.subheader(f"{overall_icon} {overall_label}")
+    st.caption(f"Experiment status: {STATUS_LABELS.get(results['status'], ('', results['status']))[1]}")
+    st.progress(
+        min(results["progress"], 1.0),
+        text=f"{results['total_samples']} / {results['target_sample_size']} samples collected",
+    )
 
     if exp.get("stop_reason"):
         st.error(exp["stop_reason"])
@@ -121,6 +157,10 @@ with tab_monitor:
 
     if results["comparisons"]:
         st.subheader("Statistical comparisons vs. control")
+        st.caption(
+            "`p_value` under 0.05 (with `significant` = True) means the difference is very unlikely "
+            "to be random chance. `favors_variant` = True means that variant is winning, not the control."
+        )
         comp_df = pd.DataFrame(results["comparisons"])
         display_cols = [
             "variant_name", "n_variant", "n_control", "mean_variant", "mean_control", "diff",

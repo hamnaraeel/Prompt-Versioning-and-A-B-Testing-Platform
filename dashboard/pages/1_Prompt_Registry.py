@@ -7,14 +7,20 @@ import streamlit as st
 
 from api import get_prompt, list_activations, list_prompts, list_versions, post
 
-st.set_page_config(page_title="Prompt Registry", layout="wide")
-st.title("Prompt Registry")
+st.set_page_config(page_title="Prompt Registry", layout="wide", page_icon="📚")
+st.title("📚 Prompt Registry")
+st.caption(
+    "This is your prompt history — like Git for prompts. Each **prompt** is a named task "
+    "(e.g. \"support-email-classifier\"); each **version** is one wording of it. Nothing is ever "
+    "overwritten, so you can always roll back."
+)
 
-with st.expander("Create a new prompt"):
+with st.expander("➕ Create a new prompt", expanded=False):
+    st.caption("Just give it a name and description — you'll add the actual instruction text as its first version next.")
     with st.form("create_prompt"):
-        name = st.text_input("Name")
-        description = st.text_area("Description")
-        actor = st.text_input("Your name / actor", value="dashboard-user")
+        name = st.text_input("Name", placeholder="e.g. support-email-classifier")
+        description = st.text_area("Description", placeholder="What is this prompt for?")
+        actor = st.text_input("Your name", value="dashboard-user", help="Shown in the audit log so teammates know who made this.")
         if st.form_submit_button("Create prompt") and name:
             post("/prompts", json={"name": name, "description": description, "actor": actor})
             st.success(f"Created prompt '{name}'")
@@ -22,7 +28,7 @@ with st.expander("Create a new prompt"):
 
 prompts = list_prompts()
 if not prompts:
-    st.info("No prompts yet.")
+    st.info("No prompts yet — create one above, or run the seed demo script to load an example.")
     st.stop()
 
 names = {p["name"]: p["id"] for p in prompts}
@@ -32,13 +38,16 @@ prompt = get_prompt(prompt_id)
 
 st.subheader(f"{prompt['name']}")
 st.caption(prompt["description"])
-st.write(f"Active version id: `{prompt['active_version_id']}`")
+versions = list_versions(prompt_id)
+if prompt["active_version_id"]:
+    active_v = next((v for v in versions if v["id"] == prompt["active_version_id"]), None)
+    st.write(f"🟢 Live in production: **v{active_v['version_number']}**" if active_v else "🟢 Has an active version")
+else:
+    st.write("⚪ No version is live yet — activate one from the *Versions* tab below.")
 
 tab_versions, tab_new, tab_diff, tab_history = st.tabs(
-    ["Versions", "New version", "Diff two versions", "Activation history"]
+    ["Versions", "➕ New version", "🔍 Compare two versions", "📜 Activation history"]
 )
-
-versions = list_versions(prompt_id)
 
 with tab_versions:
     for v in sorted(versions, key=lambda x: -x["version_number"]):
@@ -64,6 +73,11 @@ with tab_versions:
                 st.rerun()
 
 with tab_new:
+    st.caption(
+        "This saves a brand-new version — it won't go live automatically. Activate it from the "
+        "*Versions* tab when you're ready, or test it against another version first on the "
+        "*Compare Versions* page."
+    )
     with st.form("new_version"):
         system_prompt = st.text_area(
             "System prompt (use {{variable}} for template variables)", height=200
