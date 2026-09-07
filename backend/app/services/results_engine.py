@@ -88,11 +88,12 @@ def build_results(db: Session, experiment: models.Experiment) -> dict:
     total_n = sum(counts.values())
     progress = min(1.0, total_n / experiment.target_sample_size) if experiment.target_sample_size else 1.0
 
-    winner = None
-    for cmp in comparisons:
-        if cmp.significant and cmp.favors_variant:
-            winner = cmp
-            break
+    # Among variants that beat control significantly, the winner is the one
+    # furthest ahead of control (not just the first one found in variant
+    # order) — otherwise a middling-but-significant variant could shadow a
+    # much stronger one tested alongside it.
+    significant_winners = [cmp for cmp in comparisons if cmp.significant and cmp.favors_variant]
+    winner = max(significant_winners, key=lambda cmp: abs(cmp.diff), default=None)
 
     if winner:
         overall_status = "winner"

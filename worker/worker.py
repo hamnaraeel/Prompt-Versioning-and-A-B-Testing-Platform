@@ -9,12 +9,18 @@ import time
 
 from app import models
 from app.config import settings
-from app.database import SessionLocal
+from app.database import Base, SessionLocal, engine
 from app.metrics import builtin  # noqa: F401 populates the metric registry
 from app.services import guardrails, metric_compute
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s worker %(levelname)s %(message)s")
 log = logging.getLogger("worker")
+
+# The worker can start before the backend has finished creating tables (compose's
+# `depends_on: condition: service_started` only waits for the container to start,
+# not for the app inside it to run migrations), so ensure the schema exists here
+# too. This is idempotent and safe to call alongside the backend's own create_all.
+Base.metadata.create_all(bind=engine)
 
 
 def tick():

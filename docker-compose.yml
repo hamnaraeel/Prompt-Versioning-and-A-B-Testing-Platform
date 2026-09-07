@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: ppat
       POSTGRES_DB: ppat
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - ppat_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -23,7 +23,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     ports:
-      - "8000:8000"
+      - "8001:8000"
     depends_on:
       db:
         condition: service_healthy

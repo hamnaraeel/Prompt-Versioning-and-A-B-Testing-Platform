@@ -29,9 +29,12 @@ cp .env.example .env   # optional: add OPENAI_API_KEY / ANTHROPIC_API_KEY, or le
 docker compose up --build
 ```
 
-- API: http://localhost:8000 (docs at `/docs`)
+- API: http://localhost:8001 (docs at `/docs`)
 - Dashboard: http://localhost:8501
-- Postgres: localhost:5432 (user/pass/db: `ppat`)
+- Postgres: localhost:5433 (user/pass/db: `ppat`)
+
+(Host ports are remapped from the defaults 8000/5432 to 8001/5433 to avoid clashing with other local
+projects; the containers still talk to each other internally on 8000/5432.)
 
 Seed the demo scenario (a customer-support email classifier with three prompt variants — zero-shot,
 few-shot, chain-of-thought — run as a live experiment over 500+ synthetic requests):
